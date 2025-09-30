@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 // Sample database schema for demo purposes
 const SAMPLE_SCHEMA = `
 -- Sample e-commerce database schema
@@ -81,42 +77,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Query is required' }, { status: 400 });
     }
 
-    // Generate SQL using OpenAI
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `You are a SQL expert. Convert the natural language query to SQL.
-          
-          Database Schema:
-          ${SAMPLE_SCHEMA}
-          
-          Rules:
-          1. Only use the tables and columns defined in the schema
-          2. Return valid PostgreSQL syntax
-          3. Use appropriate JOINs when needed
-          4. Include proper WHERE clauses for filtering
-          5. Use aggregate functions (SUM, COUNT, AVG, etc.) when appropriate
-          6. Return only the SQL query, no explanations
-          7. If the query is ambiguous, make reasonable assumptions
-          8. For date ranges, use current year (2024) as reference
-          
-          Sample data context:
-          - Customers: John Doe (USA), Jane Smith (Canada), Bob Johnson (USA), Alice Brown (UK)
-          - Products: Laptop ($999.99), Phone ($699.99), Book ($29.99), Headphones ($199.99)
-          - Orders: Various orders from January 2024
-          - Sales: Completed sales transactions`
-        },
-        {
-          role: "user",
-          content: query
-        }
-      ],
-      temperature: 0.1,
-    });
-
-    const sqlQuery = completion.choices[0]?.message?.content?.trim();
+    // Generate SQL using OpenAI if available; otherwise use a simple fallback
+    let sqlQuery: string | undefined;
+    if (process.env.OPENAI_API_KEY) {
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `You are a SQL expert. Convert the natural language query to SQL.
+            
+            Database Schema:
+            ${SAMPLE_SCHEMA}
+            
+            Rules:
+            1. Only use the tables and columns defined in the schema
+            2. Return valid PostgreSQL syntax
+            3. Use appropriate JOINs when needed
+            4. Include proper WHERE clauses for filtering
+            5. Use aggregate functions (SUM, COUNT, AVG, etc.) when appropriate
+            6. Return only the SQL query, no explanations
+            7. If the query is ambiguous, make reasonable assumptions
+            8. For date ranges, use current year (2024) as reference
+            
+            Sample data context:
+            - Customers: John Doe (USA), Jane Smith (Canada), Bob Johnson (USA), Alice Brown (UK)
+            - Products: Laptop ($999.99), Phone ($699.99), Book ($29.99), Headphones ($199.99)
+            - Orders: Various orders from January 2024
+            - Sales: Completed sales transactions`
+          },
+          { role: "user", content: query }
+        ],
+        temperature: 0.1,
+      });
+      sqlQuery = completion.choices[0]?.message?.content?.trim();
+    } else {
+      sqlQuery = generateSqlFallback(query);
+    }
 
     if (!sqlQuery) {
       return NextResponse.json({ error: 'Failed to generate SQL query' }, { status: 500 });
@@ -180,4 +178,14 @@ function executeMockQuery(sql: string): Record<string, unknown>[] {
       note: 'This is demo data. In production, this would return actual database results.' 
     }
   ];
+}
+
+function generateSqlFallback(nl: string): string {
+  const q = nl.toLowerCase();
+  if (q.includes('count') && q.includes('customers')) return 'SELECT COUNT(*) AS count FROM customers;';
+  if (q.includes('sum') && (q.includes('total') || q.includes('revenue') || q.includes('sales'))) return 'SELECT SUM(total_amount) AS total_amount FROM orders;';
+  if (q.includes('customers') && q.includes('country')) return 'SELECT name, country FROM customers;';
+  if (q.includes('products') && q.includes('category')) return 'SELECT name, category, price FROM products;';
+  if (q.includes('orders') && q.includes('status')) return 'SELECT id, total_amount, status, order_date FROM orders;';
+  return 'SELECT 1;';
 }
