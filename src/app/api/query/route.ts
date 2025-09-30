@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { prisma } from '@/lib/prisma';
+import { QueryExecutor } from '@/lib/db/query-executor';
 import OpenAI from 'openai';
 
-// Sample database schema for demo purposes
+// Keep sample schema for demo mode
 const SAMPLE_SCHEMA = `
 -- Sample e-commerce database schema
 CREATE TABLE customers (
@@ -42,7 +45,7 @@ CREATE TABLE sales (
 );
 `;
 
-// Sample data for demo
+// Sample data for demo - same as before
 const SAMPLE_DATA = {
   customers: [
     { id: 1, name: 'John Doe', email: 'john@example.com', country: 'USA', city: 'New York' },
@@ -71,65 +74,82 @@ const SAMPLE_DATA = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { query } = await request.json();
+    const { query, dataSourceId } = await request.json();
 
     if (!query) {
       return NextResponse.json({ error: 'Query is required' }, { status: 400 });
     }
 
-    // Generate SQL using OpenAI if available; otherwise use a simple fallback
-    let sqlQuery: string | undefined;
-    if (process.env.OPENAI_API_KEY) {
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: `You are a SQL expert. Convert the natural language query to SQL.
-            
-            Database Schema:
-            ${SAMPLE_SCHEMA}
-            
-            Rules:
-            1. Only use the tables and columns defined in the schema
-            2. Return valid PostgreSQL syntax
-            3. Use appropriate JOINs when needed
-            4. Include proper WHERE clauses for filtering
-            5. Use aggregate functions (SUM, COUNT, AVG, etc.) when appropriate
-            6. Return only the SQL query, no explanations
-            7. If the query is ambiguous, make reasonable assumptions
-            8. For date ranges, use current year (2024) as reference
-            
-            Sample data context:
-            - Customers: John Doe (USA), Jane Smith (Canada), Bob Johnson (USA), Alice Brown (UK)
-            - Products: Laptop ($999.99), Phone ($699.99), Book ($29.99), Headphones ($199.99)
-            - Orders: Various orders from January 2024
-            - Sales: Completed sales transactions`
-          },
-          { role: "user", content: query }
-        ],
-        temperature: 0.1,
-      });
-      sqlQuery = completion.choices[0]?.message?.content?.trim();
-    } else {
-      sqlQuery = generateSqlFallback(query);
+    // Check if demo mode (no dataSourceId provided)
+    if (!dataSourceId) {
+      return handleDemoQuery(query);
     }
 
-    if (!sqlQuery) {
-      return NextResponse.json({ error: 'Failed to generate SQL query' }, { status: 500 });
+    // Get session for authenticated queries
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // For demo purposes, we'll simulate query execution with sample data
-    // In production, this would execute against a real database
-    const mockResult = executeMockQuery(sqlQuery);
-
-    return NextResponse.json({
-      sqlQuery,
-      result: mockResult,
-      executionTime: Math.floor(Math.random() * 1000) + 100, // Mock execution time
-      status: 'completed'
+    // Get user
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
     });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Get data source with access check
+    const dataSource = await prisma.dataSource.findUnique({
+      where: { id: dataSourceId },
+      include: {
+        organization: {
+          include: {
+            members: {
+              where: { userId: user.id }
+            }
+          }
+        }
+      }
+    });
+
+    if (!dataSource || dataSource.organization.members.length === 0) {
+      return NextResponse.json(
+        { error: 'Data source not found or access denied' },
+        { status: 403 }
+      );
+    }
+
+    if (!dataSource.isActive) {
+      return NextResponse.json(
+        { error: 'Data source is not active' },
+        { status: 400 }
+      );
+    }
+
+    // Execute query using real database
+    const queryExecutor = new QueryExecutor();
+    const result = await queryExecutor.execute({
+      dataSource,
+      naturalQuery: query,
+      userId: user.id
+    });
+
+    // Save query to database for history
+    await prisma.query.create({
+      data: {
+        naturalQuery: query,
+        sqlQuery: result.sqlQuery,
+        result: result.result as Record<string, unknown>, // Prisma JSON type limitation
+        status: result.status === 'completed' ? 'COMPLETED' : 'FAILED',
+        executionTime: result.executionTime,
+        userId: user.id,
+        dataSourceId: dataSource.id
+      }
+    });
+
+    return NextResponse.json(result);
 
   } catch (error) {
     console.error('Query processing error:', error);
@@ -138,6 +158,62 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Demo mode handler - same as before
+async function handleDemoQuery(query: string) {
+  // Generate SQL using OpenAI if available; otherwise use a simple fallback
+  let sqlQuery: string | undefined;
+  if (process.env.OPENAI_API_KEY) {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `You are a SQL expert. Convert the natural language query to SQL.
+          
+          Database Schema:
+          ${SAMPLE_SCHEMA}
+          
+          Rules:
+          1. Only use the tables and columns defined in the schema
+          2. Return valid PostgreSQL syntax
+          3. Use appropriate JOINs when needed
+          4. Include proper WHERE clauses for filtering
+          5. Use aggregate functions (SUM, COUNT, AVG, etc.) when appropriate
+          6. Return only the SQL query, no explanations
+          7. If the query is ambiguous, make reasonable assumptions
+          8. For date ranges, use current year (2024) as reference
+          
+          Sample data context:
+          - Customers: John Doe (USA), Jane Smith (Canada), Bob Johnson (USA), Alice Brown (UK)
+          - Products: Laptop ($999.99), Phone ($699.99), Book ($29.99), Headphones ($199.99)
+          - Orders: Various orders from January 2024
+          - Sales: Completed sales transactions`
+        },
+        { role: "user", content: query }
+      ],
+      temperature: 0.1,
+    });
+    sqlQuery = completion.choices[0]?.message?.content?.trim();
+  } else {
+    sqlQuery = generateSqlFallback(query);
+  }
+
+  if (!sqlQuery) {
+    return NextResponse.json({ error: 'Failed to generate SQL query' }, { status: 500 });
+  }
+
+  // For demo purposes, we'll simulate query execution with sample data
+  const mockResult = executeMockQuery(sqlQuery);
+
+  return NextResponse.json({
+    sqlQuery,
+    result: mockResult,
+    executionTime: Math.floor(Math.random() * 1000) + 100, // Mock execution time
+    status: 'completed'
+  });
 }
 
 // Mock query execution for demo purposes

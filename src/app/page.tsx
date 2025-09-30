@@ -22,6 +22,12 @@ export default function Home() {
               <Link href="/builder">
                 <Button variant="ghost">Builder</Button>
               </Link>
+              <Link href="/dashboards">
+                <Button variant="ghost">Dashboards</Button>
+              </Link>
+              <Link href="/datasources">
+                <Button variant="ghost">Data Sources</Button>
+              </Link>
               <Link href="/pricing">
                 <Button variant="ghost">Pricing</Button>
               </Link>

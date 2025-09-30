@@ -1,17 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Send, BarChart3, Database, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Send, BarChart3, Database, Clock, CheckCircle, XCircle, Save, Share2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { ExportMenu } from '@/components/export-menu';
 
 interface QueryResult {
   sqlQuery: string;
   result: Record<string, unknown>[];
   executionTime: number;
   status: string;
+}
+
+interface DataSource {
+  id: string;
+  name: string;
+  type: string;
+  isActive: boolean;
 }
 
 const SAMPLE_QUERIES = [
@@ -30,6 +38,26 @@ export default function DemoPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<QueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [dataSources, setDataSources] = useState<DataSource[]>([]);
+  const [selectedDataSource, setSelectedDataSource] = useState<string>('demo');
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchDataSources();
+  }, []);
+
+  const fetchDataSources = async () => {
+    try {
+      const response = await fetch('/api/datasources');
+      if (response.ok) {
+        const data = await response.json();
+        setDataSources(data.dataSources || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch data sources:', error);
+    }
+  };
 
   const handleQuery = async () => {
     if (!query.trim()) return;
@@ -44,7 +72,10 @@ export default function DemoPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ 
+          query,
+          dataSourceId: selectedDataSource === 'demo' ? undefined : selectedDataSource 
+        }),
       });
 
       if (!response.ok) {
@@ -62,6 +93,59 @@ export default function DemoPage() {
 
   const handleSampleQuery = (sampleQuery: string) => {
     setQuery(sampleQuery);
+  };
+
+  const saveDashboard = async () => {
+    if (!result) return;
+
+    setIsSaving(true);
+    try {
+      const dashboardConfig = {
+        query,
+        sqlQuery: result.sqlQuery,
+        chartType: determineChartType(result.result, result.sqlQuery),
+        data: result.result
+      };
+
+      const response = await fetch('/api/dashboards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: `Dashboard - ${new Date().toLocaleString()}`,
+          description: `Query: ${query}`,
+          config: dashboardConfig,
+          isPublic: false
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save dashboard');
+      }
+
+      alert('Dashboard saved successfully!');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save dashboard');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const determineChartType = (data: Record<string, unknown>[], sqlQuery: string) => {
+    const lowerSql = sqlQuery.toLowerCase();
+    if (!data || data.length === 0) return 'none';
+    
+    if (lowerSql.includes('count') || lowerSql.includes('sum') || lowerSql.includes('total')) {
+      if (data.length === 1) return 'single-value';
+      return 'bar-chart';
+    }
+    
+    if (lowerSql.includes('by') && data.length > 1) {
+      return 'line-chart';
+    }
+    
+    return 'table';
   };
 
   const renderChart = (data: Record<string, unknown>[], sqlQuery: string) => {
@@ -180,6 +264,25 @@ export default function DemoPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
+                  <label htmlFor="dataSource" className="block text-sm font-medium text-gray-700 mb-1">
+                    Data Source
+                  </label>
+                  <select
+                    id="dataSource"
+                    value={selectedDataSource}
+                    onChange={(e) => setSelectedDataSource(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="demo">Demo Database</option>
+                    {dataSources.filter(ds => ds.isActive).map(ds => (
+                      <option key={ds.id} value={ds.id}>
+                        {ds.name} ({ds.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
                   <textarea
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -243,13 +346,41 @@ export default function DemoPage() {
                 {/* Query Info */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      <span>Query Results</span>
-                    </CardTitle>
-                    <CardDescription>
-                      Execution time: {result.executionTime}ms
-                    </CardDescription>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center space-x-2">
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <span>Query Results</span>
+                        </CardTitle>
+                        <CardDescription>
+                          Execution time: {result.executionTime}ms
+                        </CardDescription>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={saveDashboard}
+                          disabled={isSaving}
+                        >
+                          {isSaving ? (
+                            <Clock className="h-4 w-4 mr-1 animate-spin" />
+                          ) : (
+                            <Save className="h-4 w-4 mr-1" />
+                          )}
+                          Save
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          <Share2 className="h-4 w-4 mr-1" />
+                          Share
+                        </Button>
+                        <ExportMenu 
+                          data={result.result} 
+                          filename={`query-${new Date().toISOString().split('T')[0]}`}
+                          chartRef={chartRef}
+                        />
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="bg-gray-100 p-3 rounded-md">
@@ -267,7 +398,9 @@ export default function DemoPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {renderChart(result.result, result.sqlQuery)}
+                    <div ref={chartRef}>
+                      {renderChart(result.result, result.sqlQuery)}
+                    </div>
                   </CardContent>
                 </Card>
 
