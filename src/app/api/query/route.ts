@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
       data: {
         naturalQuery: query,
         sqlQuery: result.sqlQuery,
-        result: result.result as Record<string, unknown>, // Prisma JSON type limitation
+        result: JSON.parse(JSON.stringify(result.result)), // Ensure Prisma JSON compatibility
         status: result.status === 'completed' ? 'COMPLETED' : 'FAILED',
         executionTime: result.executionTime,
         userId: user.id,
