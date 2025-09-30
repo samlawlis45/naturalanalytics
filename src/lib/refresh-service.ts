@@ -150,11 +150,31 @@ export class RefreshService {
 
   private static calculateNextCronRun(cronExpression: string): Date {
     // Use the CronUtils for more accurate parsing
-    const { CronUtils } = require('./cron-utils');
-    const nextRun = CronUtils.getNextRun(cronExpression);
+    const { CronUtils } = import('./cron-utils');
     
-    // Fallback to 1 hour from now if calculation fails
-    return nextRun || new Date(Date.now() + 60 * 60 * 1000);
+    // Simple fallback parsing for common patterns
+    const parts = cronExpression.split(' ');
+    
+    if (parts.length !== 5) {
+      return new Date(Date.now() + 60 * 60 * 1000);
+    }
+
+    const [minute, hour] = parts;
+    const now = new Date();
+    
+    if (minute !== '*' && hour !== '*') {
+      const next = new Date(now);
+      next.setHours(parseInt(hour), parseInt(minute), 0, 0);
+      
+      if (next <= now) {
+        next.setDate(next.getDate() + 1);
+      }
+      
+      return next;
+    }
+    
+    // Fallback to 1 hour from now
+    return new Date(Date.now() + 60 * 60 * 1000);
   }
 
   static async getActiveSchedules(): Promise<unknown[]> {
