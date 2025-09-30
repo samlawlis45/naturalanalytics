@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Force all text to be much darker */
+* {
+  color: #1f2937 !important; /* Very dark gray, almost black */
+}
+
+/* Override specific gray classes with darker colors */
+.text-gray-600,
+.text-gray-500,
+.text-gray-400,
+.text-gray-300 {
+  color: #1f2937 !important; /* Very dark gray */
+}
+
+.text-muted-foreground {
+  color: #374151 !important; /* Dark gray */
+}
+
+/* Card descriptions should be dark */
+.card-description,
+[class*="CardDescription"] {
+  color: #374151 !important;
+}
+
+/* Headings should be very dark */
+h1, h2, h3, h4, h5, h6 {
+  color: #111827 !important; /* Almost black */
+}
+
+/* Paragraphs should be dark */
+p {
+  color: #1f2937 !important;
+}
+
+/* Links should be dark but still distinguishable */
+a {
+  color: #1d4ed8 !important; /* Blue for links */
+}
+
+/* Buttons should maintain their styling */
+button {
+  color: inherit !important;
+}
