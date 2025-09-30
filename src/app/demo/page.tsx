@@ -73,10 +73,16 @@ export default function DemoPage() {
     if (lowerSql.includes('count') || lowerSql.includes('sum') || lowerSql.includes('total')) {
       if (data.length === 1 && data[0].count) {
         // Single number result
+        const aggregateValue = String(
+          (data[0] as Record<string, unknown>).count ??
+          (data[0] as Record<string, unknown>).total_amount ??
+          (data[0] as Record<string, unknown>).total ??
+          ''
+        );
         return (
           <div className="text-center">
             <div className="text-6xl font-bold text-blue-600 mb-2">
-              {data[0].count || data[0].total_amount || data[0].total}
+              {aggregateValue}
             </div>
             <div className="text-gray-600">Total Count</div>
           </div>
