@@ -17,6 +17,12 @@ declare module 'next-auth' {
   }
 }
 
+declare module 'next-auth/jwt' {
+  interface JWT {
+    id?: string
+  }
+}
+
 const providers: NextAuthOptions['providers'] = []
 
 // Only add Google provider if credentials are provided
@@ -76,7 +82,14 @@ const handler = NextAuth({
   callbacks: {
     async session({ session, user, token }) {
       if (session.user) {
-        session.user.id = user?.id || token?.id || 'demo-user'
+        const tokenWithId = token as unknown as { id?: unknown }
+        const computedId =
+          typeof user?.id === 'string'
+            ? user.id
+            : typeof tokenWithId?.id === 'string'
+            ? (tokenWithId.id as string)
+            : 'demo-user'
+        session.user.id = computedId
       }
       return session
     },
