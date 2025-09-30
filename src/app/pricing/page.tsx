@@ -85,6 +85,13 @@ export default function PricingPage() {
   const [isLoading, setIsLoading] = useState<string | null>(null);
 
   const handlePlanSelect = async (plan: typeof PLANS[0]) => {
+    // Require sign-in before starting paid checkout
+    if (plan.planId && plan.href === '/api/stripe/checkout' && !session?.user?.email) {
+      const callback = encodeURIComponent('/pricing');
+      window.location.href = `/auth/signin?callbackUrl=${callback}`;
+      return;
+    }
+
     if (plan.planId && plan.href === '/api/stripe/checkout') {
       setIsLoading(plan.planId);
       
