@@ -1,0 +1,175 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: natural-analytics-scheduler
+  namespace: natural-analytics
+  labels:
+    app: natural-analytics-scheduler
+    component: batch-scheduler
+spec:
+  schedule: "*/5 * * * *"  # Every 5 minutes
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600  # Clean up jobs after 1 hour
+      template:
+        metadata:
+          labels:
+            app: natural-analytics-scheduler
+            component: batch-job
+        spec:
+          serviceAccountName: natural-analytics-scheduler
+          restartPolicy: OnFailure
+          containers:
+          - name: scheduler
+            image: natural-analytics/app:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting scheduler job at $(date)"
+              
+              # Health check - ensure the main app is running
+              if ! curl -f -s "http://natural-analytics-web:3000/api/health" > /dev/null; then
+                echo "Main application is not healthy, skipping schedule execution"
+                exit 1
+              fi
+              
+              # Execute scheduler
+              response=$(curl -s -w "%{http_code}" \
+                -X POST \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer ${SCHEDULER_TOKEN}" \
+                "http://natural-analytics-web:3000/api/refresh/scheduler")
+              
+              http_code="${response: -3}"
+              body="${response%???}"
+              
+              echo "Scheduler response (HTTP $http_code): $body"
+              
+              if [ "$http_code" -eq 200 ]; then
+                echo "Scheduler executed successfully"
+                # Parse and log results
+                schedules_processed=$(echo "$body" | grep -o '"schedulesProcessed":[0-9]*' | cut -d':' -f2)
+                echo "Processed $schedules_processed schedules"
+                exit 0
+              else
+                echo "Scheduler failed with HTTP $http_code"
+                exit 1
+              fi
+            env:
+            - name: SCHEDULER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: natural-analytics-secrets
+                  key: scheduler-token
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "50m"
+              limits:
+                memory: "128Mi"
+                cpu: "200m"
+          tolerations:
+          - key: "scheduler-only"
+            operator: "Equal"
+            value: "true"
+            effect: "NoSchedule"
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: natural-analytics-scheduler
+  namespace: natural-analytics
+  labels:
+    app: natural-analytics-scheduler
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: natural-analytics
+  name: natural-analytics-scheduler-role
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: natural-analytics-scheduler-binding
+  namespace: natural-analytics
+subjects:
+- kind: ServiceAccount
+  name: natural-analytics-scheduler
+  namespace: natural-analytics
+roleRef:
+  kind: Role
+  name: natural-analytics-scheduler-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Alternative CronJob for different time zones
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: natural-analytics-scheduler-hourly
+  namespace: natural-analytics
+  labels:
+    app: natural-analytics-scheduler
+    component: hourly-batch
+spec:
+  schedule: "0 * * * *"  # Every hour at minute 0
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 24
+  failedJobsHistoryLimit: 5
+  suspend: true  # Disabled by default - enable if needed
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: natural-analytics-scheduler
+            component: hourly-job
+        spec:
+          serviceAccountName: natural-analytics-scheduler
+          restartPolicy: OnFailure
+          containers:
+          - name: hourly-scheduler
+            image: natural-analytics/app:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting hourly cleanup and maintenance at $(date)"
+              
+              # Cache cleanup
+              curl -s -X POST \
+                -H "Content-Type: application/json" \
+                "http://natural-analytics-web:3000/api/cache/cleanup"
+              
+              # Health metrics collection
+              curl -s -X POST \
+                -H "Content-Type: application/json" \
+                "http://natural-analytics-web:3000/api/metrics/collect"
+              
+              echo "Hourly maintenance completed"
+            resources:
+              requests:
+                memory: "32Mi"
+                cpu: "25m"
+              limits:
+                memory: "64Mi"
+                cpu: "100m"

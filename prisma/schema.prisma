@@ -24,12 +24,19 @@ model User {
   sessions Session[]
 
   // App relations
-  organizations OrganizationMember[]
-  queries       Query[]
-  dashboards    Dashboard[]
-  apiKeys       ApiKey[]
-  subscriptions Subscription[]
-  usage         Usage[]
+  organizations    OrganizationMember[]
+  queries          Query[]
+  dashboards       Dashboard[]
+  apiKeys          ApiKey[]
+  subscriptions    Subscription[]
+  usage            Usage[]
+  sharedDashboards DashboardShare[]
+  createdShares    DashboardShare[] @relation("ShareCreator")
+  comments         DashboardComment[]
+  commentReplies   CommentReply[]
+  dashboardViews   DashboardView[]
+  notifications    Notification[]
+  refreshSchedules RefreshSchedule[]
 
   @@map("users")
 }
@@ -84,9 +91,10 @@ model Organization {
   members       OrganizationMember[]
   dashboards    Dashboard[]
   apiKeys       ApiKey[]
-  dataSources   DataSource[]
-  subscriptions Subscription[]
-  usage         Usage[]
+  dataSources      DataSource[]
+  subscriptions    Subscription[]
+  usage            Usage[]
+  refreshSchedules RefreshSchedule[]
 
   @@map("organizations")
 }
@@ -130,14 +138,15 @@ model Query {
   result       Json?        // Query results
   status       QueryStatus  @default(PENDING)
   executionTime Int?        // Execution time in ms
+  isFavorite   Boolean      @default(false)
   userId       String
-  dataSourceId String
+  dataSourceId String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   // Relations
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dataSource DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dataSource DataSource? @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
 
   @@map("queries")
 }
@@ -148,14 +157,20 @@ model Dashboard {
   description    String?
   config         Json     // Dashboard configuration
   isPublic       Boolean  @default(false)
+  shareToken     String?  @unique // For public sharing
+  allowComments  Boolean  @default(true)
+  allowExport    Boolean  @default(true)
   userId         String
   organizationId String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   // Relations
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  shares       DashboardShare[]
+  comments     DashboardComment[]
+  views        DashboardView[]
 
   @@map("dashboards")
 }
@@ -215,11 +230,106 @@ model Usage {
   @@map("usage")
 }
 
+model DashboardShare {
+  id          String    @id @default(cuid())
+  dashboardId String
+  userId      String?
+  email       String?
+  permission  SharePermission @default(VIEW)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  createdBy   String
+
+  // Relations
+  dashboard Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creator   User      @relation("ShareCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@unique([dashboardId, userId])
+  @@unique([dashboardId, email])
+  @@map("dashboard_shares")
+}
+
+model DashboardComment {
+  id          String   @id @default(cuid())
+  dashboardId String
+  userId      String
+  content     String
+  isResolved  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  dashboard Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies   CommentReply[]
+
+  @@map("dashboard_comments")
+}
+
+model CommentReply {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  comment DashboardComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("comment_replies")
+}
+
+model DashboardView {
+  id          String   @id @default(cuid())
+  dashboardId String
+  userId      String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  dashboard Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("dashboard_views")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
 // Enums
 enum MemberRole {
   OWNER
   ADMIN
   MEMBER
+}
+
+enum SharePermission {
+  VIEW
+  COMMENT
+  EDIT
+}
+
+enum NotificationType {
+  DASHBOARD_SHARED
+  COMMENT_ADDED
+  QUERY_COMPLETED
+  EXPORT_READY
 }
 
 enum DataSourceType {
@@ -233,6 +343,113 @@ enum DataSourceType {
 
 enum QueryStatus {
   PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model RefreshSchedule {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  
+  // Target configuration
+  targetType  RefreshTargetType
+  targetId    String   // Dashboard ID or Query ID
+  
+  // Schedule configuration
+  scheduleType ScheduleType
+  interval     Int?     // For INTERVAL type (minutes)
+  cronExpression String? // For CRON type
+  timezone     String   @default("UTC")
+  
+  // Status and metadata
+  isActive     Boolean  @default(true)
+  lastRunAt    DateTime?
+  nextRunAt    DateTime?
+  runCount     Int      @default(0)
+  errorCount   Int      @default(0)
+  lastError    String?
+  
+  // Ownership
+  userId       String
+  organizationId String?
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  executions   RefreshExecution[]
+  
+  @@map("refresh_schedules")
+}
+
+model RefreshExecution {
+  id          String   @id @default(cuid())
+  scheduleId  String
+  
+  // Execution details
+  status      ExecutionStatus
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  duration    Int?     // Duration in milliseconds
+  
+  // Results
+  recordsAffected Int?
+  errorMessage    String?
+  metadata        Json?
+  
+  // Relations
+  schedule    RefreshSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  
+  @@map("refresh_executions")
+}
+
+model DataSourceCache {
+  id          String   @id @default(cuid())
+  
+  // Cache key (hash of query + data source)
+  cacheKey    String   @unique
+  
+  // Query details
+  sqlQuery    String
+  dataSourceId String?
+  
+  // Cache data
+  result      Json
+  recordCount Int
+  
+  // Cache metadata
+  expiresAt   DateTime
+  hitCount    Int      @default(0)
+  lastHitAt   DateTime?
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("data_source_cache")
+}
+
+// Enums for refresh system
+enum RefreshTargetType {
+  DASHBOARD
+  QUERY
+}
+
+enum ScheduleType {
+  MANUAL      // Manual refresh only
+  INTERVAL    // Every X minutes
+  CRON        // Cron expression
+  REALTIME    // Real-time (for future use)
+}
+
+enum ExecutionStatus {
+  QUEUED
   RUNNING
   COMPLETED
   FAILED

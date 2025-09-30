@@ -1,0 +1,169 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: natural-analytics-cron
+  namespace: natural-analytics
+  labels:
+    app: natural-analytics-cron
+    component: scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: natural-analytics-cron
+  template:
+    metadata:
+      labels:
+        app: natural-analytics-cron
+        component: scheduler
+    spec:
+      serviceAccountName: natural-analytics-cron
+      containers:
+      - name: cron-service
+        image: natural-analytics/app:latest
+        command: ["node", "scripts/cron-daemon.js", "start"]
+        ports:
+        - containerPort: 3001
+          name: health
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: CRON_APP_URL
+          value: "http://natural-analytics-web:3000"
+        - name: CRON_PID_FILE
+          value: "/tmp/cron.pid"
+        - name: CRON_LOG_FILE
+          value: "/var/log/cron.log"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: HEALTH_CHECK_INTERVAL
+          value: "60000"
+        - name: MAX_RESTARTS
+          value: "5"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: natural-analytics-secrets
+              key: database-url
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "test -f /tmp/cron.pid && kill -0 $(cat /tmp/cron.pid)"
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/cron/status
+            port: 3000
+            httpHeaders:
+            - name: Host
+              value: natural-analytics-web
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 2
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/log
+        - name: tmp-volume
+          mountPath: /tmp
+      volumes:
+      - name: log-volume
+        emptyDir: {}
+      - name: tmp-volume
+        emptyDir: {}
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: natural-analytics-cron
+  namespace: natural-analytics
+  labels:
+    app: natural-analytics-cron
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: natural-analytics
+  name: natural-analytics-cron-role
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: natural-analytics-cron-binding
+  namespace: natural-analytics
+subjects:
+- kind: ServiceAccount
+  name: natural-analytics-cron
+  namespace: natural-analytics
+roleRef:
+  kind: Role
+  name: natural-analytics-cron-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: natural-analytics-cron
+  namespace: natural-analytics
+  labels:
+    app: natural-analytics-cron
+spec:
+  selector:
+    app: natural-analytics-cron
+  ports:
+  - name: health
+    port: 3001
+    targetPort: health
+    protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: natural-analytics-cron-pdb
+  namespace: natural-analytics
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app: natural-analytics-cron
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: natural-analytics-cron-config
+  namespace: natural-analytics
+  labels:
+    app: natural-analytics-cron
+data:
+  health-check-interval: "60000"
+  max-restarts: "5"
+  restart-delay: "5000"
+  log-level: "info"

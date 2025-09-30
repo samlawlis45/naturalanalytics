@@ -311,10 +311,11 @@ export default function DataSourcesPage() {
                       </p>
                     </div>
 
-                    <div>
-                      <p className="text-sm text-gray-500">
-                        Added {new Date(dataSource.createdAt).toLocaleDateString()}
-                      </p>
+                    <div className="text-sm text-gray-500 space-y-1">
+                      <p>Added {new Date(dataSource.createdAt).toLocaleDateString()}</p>
+                      {dataSource.updatedAt !== dataSource.createdAt && (
+                        <p>Updated {new Date(dataSource.updatedAt).toLocaleDateString()}</p>
+                      )}
                     </div>
 
                     <div className="flex gap-2">

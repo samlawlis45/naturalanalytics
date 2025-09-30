@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  scheduler:
+    build: .
+    command: node scripts/scheduler.js
+    environment:
+      - SCHEDULER_URL=http://web:3000/api/refresh/scheduler
+      - SCHEDULER_TOKEN=${SCHEDULER_TOKEN:-dev-scheduler-token}
+      - SCHEDULER_INTERVAL=5
+    depends_on:
+      - web
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - SCHEDULER_TOKEN=${SCHEDULER_TOKEN:-dev-scheduler-token}
+    depends_on:
+      - db
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=naturalanalytics
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge

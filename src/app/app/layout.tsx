@@ -12,7 +12,11 @@ import {
   Zap,
   Layout as LayoutIcon,
   Menu,
-  X
+  X,
+  User,
+  Settings,
+  FolderOpen,
+  RefreshCw
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -20,8 +24,16 @@ const navigation = [
   { name: 'Dashboard', href: '/app', icon: Home },
   { name: 'Query', href: '/app/query', icon: Zap },
   { name: 'Builder', href: '/app/builder', icon: LayoutIcon },
-  { name: 'Dashboards', href: '/app/dashboards', icon: BarChart3 },
+  { name: 'Charts', href: '/app/charts', icon: BarChart3 },
+  { name: 'Dashboards', href: '/app/dashboards', icon: FolderOpen },
+  { name: 'Refresh', href: '/app/refresh', icon: RefreshCw },
   { name: 'Data Sources', href: '/app/datasources', icon: Database },
+  { name: 'Admin', href: '/app/admin', icon: Settings },
+];
+
+const bottomNavigation = [
+  { name: 'Profile', href: '/app/profile', icon: User },
+  { name: 'Settings', href: '/app/settings', icon: Settings },
 ];
 
 export default function AppLayout({
@@ -78,6 +90,30 @@ export default function AppLayout({
                 );
               })}
             </nav>
+            <div className="mt-4">
+              <div className="text-xs font-semibold leading-6 text-gray-400 px-2 py-2">Account</div>
+              <nav className="space-y-1">
+                {bottomNavigation.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={`group flex items-center px-2 py-2 text-base font-medium rounded-md ${
+                        isActive
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      }`}
+                      onClick={() => setSidebarOpen(false)}
+                    >
+                      <Icon className={`mr-4 h-6 w-6 ${isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
           </div>
           <div className="flex flex-shrink-0 border-t border-gray-200 p-4">
             <div className="flex items-center">
@@ -109,6 +145,30 @@ export default function AppLayout({
               <li>
                 <ul role="list" className="-mx-2 space-y-1">
                   {navigation.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = pathname === item.href;
+                    return (
+                      <li key={item.name}>
+                        <Link
+                          href={item.href}
+                          className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold ${
+                            isActive
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-700 hover:text-blue-700 hover:bg-blue-50'
+                          }`}
+                        >
+                          <Icon className={`h-6 w-6 shrink-0 ${isActive ? 'text-blue-700' : 'text-gray-400 group-hover:text-blue-700'}`} />
+                          {item.name}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+              <li className="space-y-1">
+                <div className="text-xs font-semibold leading-6 text-gray-400 px-2 py-2">Account</div>
+                <ul role="list" className="-mx-2 space-y-1">
+                  {bottomNavigation.map((item) => {
                     const Icon = item.icon;
                     const isActive = pathname === item.href;
                     return (

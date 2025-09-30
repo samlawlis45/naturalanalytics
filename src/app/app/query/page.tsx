@@ -3,9 +3,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Send, BarChart3, Database, Clock, CheckCircle, XCircle, Save, Share2 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { Send, BarChart3, Database, Clock, CheckCircle, XCircle, Save, Share2, History, Star, StarOff, Trash2, RefreshCw } from 'lucide-react';
 import { ExportMenu } from '@/components/export-menu';
+import { EnhancedChartWidget } from '@/components/charts/enhanced-chart-widget';
+import { ChartConfig } from '@/components/charts/chart-renderer';
+import { RefreshButton } from '@/components/refresh-button';
 
 interface QueryResult {
   sqlQuery: string;
@@ -21,6 +23,17 @@ interface DataSource {
   isActive: boolean;
 }
 
+interface QueryHistory {
+  id: string;
+  naturalQuery: string;
+  sqlQuery: string;
+  executionTime: number;
+  createdAt: string;
+  isFavorite: boolean;
+  dataSourceId?: string;
+  result?: Record<string, unknown>[];
+}
+
 const SAMPLE_QUERIES = [
   "Show me total sales by month",
   "How many customers do we have?",
@@ -32,7 +45,7 @@ const SAMPLE_QUERIES = [
 
 // const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
-export default function DemoPage() {
+export default function QueryPage() {
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<QueryResult | null>(null);
@@ -40,10 +53,14 @@ export default function DemoPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
   const [selectedDataSource, setSelectedDataSource] = useState<string>('demo');
+  const [queryHistory, setQueryHistory] = useState<QueryHistory[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchDataSources();
+    fetchQueryHistory();
   }, []);
 
   const fetchDataSources = async () => {
@@ -55,6 +72,21 @@ export default function DemoPage() {
       }
     } catch (error) {
       console.error('Failed to fetch data sources:', error);
+    }
+  };
+
+  const fetchQueryHistory = async () => {
+    setIsLoadingHistory(true);
+    try {
+      const response = await fetch('/api/query/history');
+      if (response.ok) {
+        const data = await response.json();
+        setQueryHistory(data.queries || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch query history:', error);
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
 
@@ -83,6 +115,9 @@ export default function DemoPage() {
 
       const data = await response.json();
       setResult(data);
+      
+      // Add to history after successful query
+      await fetchQueryHistory();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -92,6 +127,62 @@ export default function DemoPage() {
 
   const handleSampleQuery = (sampleQuery: string) => {
     setQuery(sampleQuery);
+  };
+
+  const toggleFavorite = async (historyId: string) => {
+    try {
+      const response = await fetch(`/api/query/history/${historyId}/favorite`, {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        setQueryHistory(prev => prev.map(q => 
+          q.id === historyId ? { ...q, isFavorite: !q.isFavorite } : q
+        ));
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+    }
+  };
+
+  const deleteFromHistory = async (historyId: string) => {
+    if (!confirm('Remove this query from history?')) return;
+    
+    try {
+      const response = await fetch(`/api/query/history/${historyId}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        setQueryHistory(prev => prev.filter(q => q.id !== historyId));
+      }
+    } catch (error) {
+      console.error('Failed to delete query:', error);
+    }
+  };
+
+  const loadHistoryQuery = (historyQuery: QueryHistory) => {
+    setQuery(historyQuery.naturalQuery);
+    if (historyQuery.dataSourceId) {
+      setSelectedDataSource(historyQuery.dataSourceId);
+    }
+    setShowHistory(false);
+  };
+
+  const clearHistory = async () => {
+    if (!confirm('Clear all query history? This cannot be undone.')) return;
+    
+    try {
+      const response = await fetch('/api/query/history', {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        setQueryHistory([]);
+      }
+    } catch (error) {
+      console.error('Failed to clear history:', error);
+    }
   };
 
   const saveDashboard = async () => {
@@ -147,88 +238,131 @@ export default function DemoPage() {
     return 'table';
   };
 
+  const getSmartChartConfig = (data: Record<string, unknown>[], sqlQuery: string): Partial<ChartConfig> => {
+    if (!data || data.length === 0) return { type: 'bar' };
+
+    const lowerSql = sqlQuery.toLowerCase();
+    const firstRow = data[0];
+    const keys = Object.keys(firstRow);
+    const numericKeys = keys.filter(key => typeof firstRow[key] === 'number');
+    
+    // Single value metrics
+    if (data.length === 1 && numericKeys.length === 1) {
+      const value = Number(Object.values(firstRow)[0]);
+      return {
+        type: 'gauge',
+        value,
+        min: 0,
+        max: value * 1.5,
+        yAxisFormat: lowerSql.includes('percent') ? 'percentage' : 'number',
+        theme: 'professional'
+      };
+    }
+    
+    // Time series detection
+    if (keys.some(key => key.toLowerCase().includes('date') || key.toLowerCase().includes('time') || key.toLowerCase().includes('month'))) {
+      return {
+        type: 'line',
+        theme: 'default',
+        strokeWidth: 3,
+        yAxisFormat: lowerSql.includes('amount') || lowerSql.includes('price') || lowerSql.includes('cost') ? 'currency' : 'number'
+      };
+    }
+    
+    // Proportional data (good for pie charts)
+    if (data.length <= 8 && numericKeys.length === 1 && lowerSql.includes('by')) {
+      return {
+        type: 'pie',
+        theme: 'colorful',
+        innerRadius: 20,
+        showDataLabels: true
+      };
+    }
+    
+    // Trend analysis
+    if (lowerSql.includes('trend') || lowerSql.includes('over time')) {
+      return {
+        type: 'area',
+        theme: 'professional',
+        fillOpacity: 0.3
+      };
+    }
+    
+    // Comparison data
+    if (lowerSql.includes('compare') || lowerSql.includes('vs') || numericKeys.length > 1) {
+      return {
+        type: 'composed',
+        theme: 'default',
+        yKeys: numericKeys.slice(0, 2)
+      };
+    }
+    
+    // Default to bar chart
+    return {
+      type: 'bar',
+      theme: 'default',
+      showDataLabels: data.length <= 10,
+      yAxisFormat: lowerSql.includes('amount') || lowerSql.includes('price') || lowerSql.includes('cost') ? 'currency' : 'number'
+    };
+  };
+
   const renderChart = (data: Record<string, unknown>[], sqlQuery: string) => {
     if (!data || data.length === 0) return null;
 
-    const lowerSql = sqlQuery.toLowerCase();
+    // Check if this is a simple table view case
+    const shouldShowTable = data.length > 50 || Object.keys(data[0]).length > 6;
     
-    // Determine chart type based on query content
-    if (lowerSql.includes('count') || lowerSql.includes('sum') || lowerSql.includes('total')) {
-      if (data.length === 1 && data[0].count) {
-        // Single number result
-        const aggregateValue = String(
-          (data[0] as Record<string, unknown>).count ??
-          (data[0] as Record<string, unknown>).total_amount ??
-          (data[0] as Record<string, unknown>).total ??
-          ''
-        );
-        return (
-          <div className="text-center">
-            <div className="text-6xl font-bold text-blue-600 mb-2">
-              {aggregateValue}
-            </div>
-            <div className="text-gray-600">Total Count</div>
-          </div>
-        );
-      }
-      
-      if (data.length > 1) {
-        // Bar chart for multiple categories
-        return (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="value" fill="#0088FE" />
-            </BarChart>
-          </ResponsiveContainer>
-        );
-      }
-    }
-
-    if (lowerSql.includes('by') && data.length > 1) {
-      // Line chart for time series or grouped data
+    if (shouldShowTable) {
       return (
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
-            <Line type="monotone" dataKey="value" stroke="#0088FE" strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                {Object.keys(data[0]).map((key) => (
+                  <th key={key} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {key.replace(/_/g, ' ')}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {data.slice(0, 100).map((row, index) => (
+                <tr key={index}>
+                  {Object.values(row).map((value, cellIndex) => (
+                    <td key={cellIndex} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {typeof value === 'number' ? value.toLocaleString() : String(value)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data.length > 100 && (
+            <div className="text-center py-4 text-gray-500 text-sm">
+              Showing first 100 rows of {data.length} total rows
+            </div>
+          )}
+        </div>
       );
     }
 
-    // Default table view
+    const smartConfig = getSmartChartConfig(data, sqlQuery);
+    
     return (
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              {Object.keys(data[0]).map((key) => (
-                <th key={key} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {key.replace(/_/g, ' ')}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {data.map((row, index) => (
-              <tr key={index}>
-                {Object.values(row).map((value, cellIndex) => (
-                  <td key={cellIndex} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {typeof value === 'number' ? value.toLocaleString() : String(value)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <EnhancedChartWidget
+        data={data}
+        initialConfig={smartConfig}
+        title="Query Results"
+        description={`${data.length} rows • Auto-detected: ${smartConfig.type} chart`}
+        showControls={true}
+        isEditable={true}
+        onExport={(format) => {
+          if (format === 'csv' || format === 'json') {
+            // Use existing export logic from ExportMenu
+            console.log(`Exporting as ${format}`);
+          }
+        }}
+      />
     );
   };
 
@@ -241,6 +375,11 @@ export default function DemoPage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Query Your Data</h1>
               <p className="text-gray-600 mt-1">Ask questions in natural language and get instant visualizations</p>
+              {queryHistory.filter(q => q.isFavorite).length > 0 && (
+                <p className="text-sm text-yellow-600 mt-1">
+                  {queryHistory.filter(q => q.isFavorite).length} favorite queries saved
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -307,20 +446,133 @@ export default function DemoPage() {
                   )}
                 </Button>
 
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Sample Queries:</h4>
-                  <div className="space-y-1">
-                    {SAMPLE_QUERIES.map((sampleQuery, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleSampleQuery(sampleQuery)}
-                        className="block w-full text-left text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded"
-                      >
-                        {sampleQuery}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowHistory(!showHistory)}
+                    className="flex-1"
+                  >
+                    <History className="h-4 w-4 mr-1" />
+                    History ({queryHistory.length})
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchQueryHistory}
+                    disabled={isLoadingHistory}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+                  </Button>
                 </div>
+
+                {showHistory ? (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-medium text-gray-700">Query History:</h4>
+                      {queryHistory.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={clearHistory}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          Clear All
+                        </Button>
+                      )}
+                    </div>
+                    <div className="max-h-64 overflow-y-auto space-y-1">
+                      {isLoadingHistory ? (
+                        <div className="flex items-center justify-center py-4">
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                        </div>
+                      ) : queryHistory.length === 0 ? (
+                        <p className="text-sm text-gray-500 text-center py-4">No queries yet</p>
+                      ) : (
+                        queryHistory.map((historyQuery) => (
+                          <div
+                            key={historyQuery.id}
+                            className="group flex items-start justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer"
+                            onClick={() => loadHistoryQuery(historyQuery)}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-gray-900 truncate">
+                                {historyQuery.naturalQuery}
+                              </p>
+                              <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                                <span>{new Date(historyQuery.createdAt).toLocaleDateString()}</span>
+                                <span>•</span>
+                                <span>{historyQuery.executionTime}ms</span>
+                                {historyQuery.isFavorite && (
+                                  <Star className="h-3 w-3 text-yellow-500 fill-current" />
+                                )}
+                              </div>
+                            </div>
+                            <div className="opacity-0 group-hover:opacity-100 flex items-center space-x-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFavorite(historyQuery.id);
+                                }}
+                                className="p-1 hover:bg-gray-200 rounded"
+                              >
+                                {historyQuery.isFavorite ? (
+                                  <StarOff className="h-3 w-3" />
+                                ) : (
+                                  <Star className="h-3 w-3" />
+                                )}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteFromHistory(historyQuery.id);
+                                }}
+                                className="p-1 hover:bg-gray-200 rounded text-red-600"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Sample Queries:</h4>
+                    <div className="space-y-1">
+                      {SAMPLE_QUERIES.map((sampleQuery, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleSampleQuery(sampleQuery)}
+                          className="block w-full text-left text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded"
+                        >
+                          {sampleQuery}
+                        </button>
+                      ))}
+                    </div>
+                    {queryHistory.filter(q => q.isFavorite).length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Favorites:</h4>
+                        <div className="space-y-1">
+                          {queryHistory
+                            .filter(q => q.isFavorite)
+                            .slice(0, 3)
+                            .map((favoriteQuery) => (
+                              <button
+                                key={favoriteQuery.id}
+                                onClick={() => loadHistoryQuery(favoriteQuery)}
+                                className="block w-full text-left text-sm text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 p-2 rounded flex items-center"
+                              >
+                                <Star className="h-3 w-3 mr-1 fill-current" />
+                                <span className="truncate">{favoriteQuery.naturalQuery}</span>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -372,6 +624,17 @@ export default function DemoPage() {
                           <Share2 className="h-4 w-4 mr-1" />
                           Share
                         </Button>
+                        <RefreshButton
+                          onRefresh={async () => {
+                            // Re-execute the current query
+                            if (query) {
+                              await handleQuery();
+                            }
+                          }}
+                          targetType="QUERY"
+                          targetId="current-query"
+                          showLastRefresh={true}
+                        />
                         <ExportMenu 
                           data={result.result} 
                           filename={`query-${new Date().toISOString().split('T')[0]}`}

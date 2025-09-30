@@ -18,14 +18,43 @@ import {
 } from 'lucide-react';
 
 interface DashboardStats {
-  totalQueries: number;
-  dataSources: number;
-  dashboards: number;
-  recentQueries: Array<{
-    id: string;
-    naturalQuery: string;
-    createdAt: string;
-  }>;
+  overview: {
+    totalQueries: number;
+    totalDashboards: number;
+    totalDataSources: number;
+    weekOverWeekGrowth: number;
+    avgExecutionTime: number;
+  };
+  activity: {
+    queriesThisWeek: number;
+    queriesLastWeek: number;
+    dashboardsThisMonth: number;
+    recentQueries: Array<{
+      id: string;
+      naturalQuery: string;
+      executionTime: number;
+      createdAt: string;
+      sqlQuery?: string;
+    }>;
+  };
+  trends: {
+    daily: Array<{
+      date: string;
+      day: string;
+      count: number;
+    }>;
+    topDataSources: Array<{
+      name: string;
+      type: string;
+      count: number;
+    }>;
+  };
+  performance: {
+    avgExecutionTime: number;
+    fastestQuery: number;
+    slowestQuery: number;
+    totalExecutionTime: number;
+  };
 }
 
 export default function AppDashboard() {
@@ -39,20 +68,40 @@ export default function AppDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      // TODO: Create API endpoint for dashboard stats
-      // For now, using mock data
-      setStats({
-        totalQueries: 127,
-        dataSources: 3,
-        dashboards: 8,
-        recentQueries: [
-          { id: '1', naturalQuery: 'Show me sales by region this month', createdAt: '2024-01-20T10:30:00Z' },
-          { id: '2', naturalQuery: 'How many new customers did we get?', createdAt: '2024-01-20T09:15:00Z' },
-          { id: '3', naturalQuery: 'Top performing products by revenue', createdAt: '2024-01-19T16:45:00Z' },
-        ]
-      });
+      const response = await fetch('/api/stats');
+      if (!response.ok) {
+        throw new Error('Failed to fetch dashboard statistics');
+      }
+      const data = await response.json();
+      setStats(data.stats);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
+      // Fallback to empty stats if API fails
+      setStats({
+        overview: {
+          totalQueries: 0,
+          totalDashboards: 0,
+          totalDataSources: 0,
+          weekOverWeekGrowth: 0,
+          avgExecutionTime: 0
+        },
+        activity: {
+          queriesThisWeek: 0,
+          queriesLastWeek: 0,
+          dashboardsThisMonth: 0,
+          recentQueries: []
+        },
+        trends: {
+          daily: [],
+          topDataSources: []
+        },
+        performance: {
+          avgExecutionTime: 0,
+          fastestQuery: 0,
+          slowestQuery: 0,
+          totalExecutionTime: 0
+        }
+      });
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +153,12 @@ export default function AppDashboard() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Total Queries</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats?.totalQueries}</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats?.overview.totalQueries || 0}</p>
+                  {stats?.activity.queriesThisWeek > 0 && (
+                    <p className="text-xs text-green-600 mt-1">
+                      +{stats.activity.queriesThisWeek} this week
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -118,7 +172,12 @@ export default function AppDashboard() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Data Sources</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats?.dataSources}</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats?.overview.totalDataSources || 0}</p>
+                  {stats?.trends.topDataSources.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {stats.trends.topDataSources[0].name} most used
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -132,7 +191,12 @@ export default function AppDashboard() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Dashboards</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats?.dashboards}</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats?.overview.totalDashboards || 0}</p>
+                  {stats?.activity.dashboardsThisMonth > 0 && (
+                    <p className="text-xs text-green-600 mt-1">
+                      +{stats.activity.dashboardsThisMonth} this month
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -145,8 +209,12 @@ export default function AppDashboard() {
                   <TrendingUp className="h-6 w-6 text-orange-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">This Week</p>
-                  <p className="text-2xl font-bold text-gray-900">+23%</p>
+                  <p className="text-sm font-medium text-gray-600">Growth</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {stats?.overview.weekOverWeekGrowth >= 0 ? '+' : ''}
+                    {stats?.overview.weekOverWeekGrowth.toFixed(1) || '0'}%
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">vs last week</p>
                 </div>
               </div>
             </CardContent>
@@ -208,22 +276,39 @@ export default function AppDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {stats?.recentQueries.map((query) => (
-                  <div key={query.id} className="flex items-start space-x-3 p-3 border rounded-lg">
-                    <div className="p-1 bg-gray-100 rounded">
-                      <Activity className="h-4 w-4 text-gray-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {query.naturalQuery}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {new Date(query.createdAt).toLocaleDateString()} at{' '}
-                        {new Date(query.createdAt).toLocaleTimeString()}
-                      </p>
-                    </div>
+                {stats?.activity.recentQueries.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Activity className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No queries yet</p>
+                    <p className="text-xs text-gray-400">Start by asking a question about your data</p>
                   </div>
-                ))}
+                ) : (
+                  stats?.activity.recentQueries.map((query) => (
+                    <div key={query.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="p-1 bg-gray-100 rounded">
+                        <Activity className="h-4 w-4 text-gray-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {query.naturalQuery}
+                        </p>
+                        <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                          <span>
+                            {new Date(query.createdAt).toLocaleDateString()} at{' '}
+                            {new Date(query.createdAt).toLocaleTimeString()}
+                          </span>
+                          <span>•</span>
+                          <span>{query.executionTime}ms</span>
+                        </div>
+                        {query.sqlQuery && (
+                          <p className="text-xs text-gray-400 mt-1 font-mono truncate">
+                            {query.sqlQuery}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
               <div className="mt-4 pt-4 border-t">
                 <Link href="/app/query">
@@ -236,8 +321,75 @@ export default function AppDashboard() {
           </Card>
         </div>
 
+        {/* Performance Metrics */}
+        {stats && stats.overview.totalQueries > 0 && (
+          <div className="grid lg:grid-cols-2 gap-8 mb-8">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <TrendingUp className="h-5 w-5 mr-2" />
+                  Query Performance
+                </CardTitle>
+                <CardDescription className="text-gray-800">
+                  Your query execution metrics
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <p className="text-2xl font-bold text-blue-600">{stats.performance.avgExecutionTime}ms</p>
+                    <p className="text-sm text-gray-600">Average Time</p>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <p className="text-2xl font-bold text-green-600">{stats.performance.fastestQuery}ms</p>
+                    <p className="text-sm text-gray-600">Fastest Query</p>
+                  </div>
+                </div>
+                <div className="mt-4 text-sm text-gray-600">
+                  <p>Total execution time: {(stats.performance.totalExecutionTime / 1000).toFixed(1)}s</p>
+                  <p>Slowest query: {stats.performance.slowestQuery}ms</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Database className="h-5 w-5 mr-2" />
+                  Data Source Usage
+                </CardTitle>
+                <CardDescription className="text-gray-800">
+                  Most frequently queried sources
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {stats.trends.topDataSources.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">No data source usage yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {stats.trends.topDataSources.map((source, index) => (
+                      <div key={source.name} className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-3 h-3 rounded-full ${
+                            index === 0 ? 'bg-blue-500' :
+                            index === 1 ? 'bg-green-500' :
+                            index === 2 ? 'bg-yellow-500' : 'bg-gray-400'
+                          }`} />
+                          <span className="text-sm font-medium">{source.name}</span>
+                          <Badge variant="outline" className="text-xs">{source.type}</Badge>
+                        </div>
+                        <span className="text-sm text-gray-600">{source.count} queries</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Getting Started Section - Show only if user has minimal data */}
-        {stats && stats.totalQueries < 5 && (
+        {stats && stats.overview.totalQueries < 5 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -253,8 +405,15 @@ export default function AppDashboard() {
                 <div className="flex items-center space-x-3">
                   <Badge variant="secondary">1</Badge>
                   <div className="flex-1">
-                    <h4 className="font-medium">Connect your first data source</h4>
-                    <p className="text-sm text-gray-600">Link your database to start analyzing your data</p>
+                    <h4 className="font-medium">
+                      {stats.overview.totalDataSources === 0 ? 'Connect your first data source' : 'Add more data sources'}
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {stats.overview.totalDataSources === 0 
+                        ? 'Link your database to start analyzing your data'
+                        : 'Connect additional databases for richer insights'
+                      }
+                    </p>
                   </div>
                   <Link href="/app/datasources">
                     <Button variant="outline" size="sm">Connect</Button>
@@ -264,8 +423,15 @@ export default function AppDashboard() {
                 <div className="flex items-center space-x-3">
                   <Badge variant="secondary">2</Badge>
                   <div className="flex-1">
-                    <h4 className="font-medium">Ask your first question</h4>
-                    <p className="text-sm text-gray-600">Try querying your data using natural language</p>
+                    <h4 className="font-medium">
+                      {stats.overview.totalQueries === 0 ? 'Ask your first question' : 'Explore more data'}
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {stats.overview.totalQueries === 0 
+                        ? 'Try querying your data using natural language'
+                        : 'Ask complex questions to discover insights'
+                      }
+                    </p>
                   </div>
                   <Link href="/app/query">
                     <Button variant="outline" size="sm">Try Now</Button>
@@ -275,8 +441,15 @@ export default function AppDashboard() {
                 <div className="flex items-center space-x-3">
                   <Badge variant="secondary">3</Badge>
                   <div className="flex-1">
-                    <h4 className="font-medium">Create a dashboard</h4>
-                    <p className="text-sm text-gray-600">Save and organize your visualizations</p>
+                    <h4 className="font-medium">
+                      {stats.overview.totalDashboards === 0 ? 'Create a dashboard' : 'Build advanced dashboards'}
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {stats.overview.totalDashboards === 0 
+                        ? 'Save and organize your visualizations'
+                        : 'Create multi-widget dashboards for comprehensive views'
+                      }
+                    </p>
                   </div>
                   <Link href="/app/builder">
                     <Button variant="outline" size="sm">Build</Button>

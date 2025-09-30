@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     // Check if demo mode (no dataSourceId provided)
     if (!dataSourceId) {
-      return handleDemoQuery(query);
+      return handleDemoQuery(query, request);
     }
 
     // Get session for authenticated queries
@@ -144,6 +144,7 @@ export async function POST(request: NextRequest) {
         result: JSON.parse(JSON.stringify(result.result)), // Ensure Prisma JSON compatibility
         status: result.status === 'completed' ? 'COMPLETED' : 'FAILED',
         executionTime: result.executionTime,
+        isFavorite: false,
         userId: user.id,
         dataSourceId: dataSource.id
       }
@@ -160,8 +161,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Demo mode handler - same as before
-async function handleDemoQuery(query: string) {
+// Demo mode handler with history saving
+async function handleDemoQuery(query: string, request: NextRequest) {
   // Generate SQL using OpenAI if available; otherwise use a simple fallback
   let sqlQuery: string | undefined;
   if (process.env.OPENAI_API_KEY) {
@@ -208,12 +209,37 @@ async function handleDemoQuery(query: string) {
   // For demo purposes, we'll simulate query execution with sample data
   const mockResult = executeMockQuery(sqlQuery);
 
-  return NextResponse.json({
+  const executionTime = Math.floor(Math.random() * 1000) + 100;
+  const result = {
     sqlQuery,
     result: mockResult,
-    executionTime: Math.floor(Math.random() * 1000) + 100, // Mock execution time
+    executionTime,
     status: 'completed'
-  });
+  };
+
+  // Save demo query to history if user is logged in
+  try {
+    const session = await getServerSession();
+    if (session?.user?.email) {
+      await prisma.query.create({
+        data: {
+          naturalQuery: query,
+          sqlQuery: sqlQuery,
+          result: JSON.parse(JSON.stringify(mockResult)),
+          status: 'COMPLETED',
+          executionTime: executionTime,
+          isFavorite: false,
+          userId: session.user.email,
+          dataSourceId: null // Demo mode has no data source
+        }
+      });
+    }
+  } catch (error) {
+    // Don't fail the query if history save fails
+    console.error('Failed to save demo query to history:', error);
+  }
+
+  return NextResponse.json(result);
 }
 
 // Mock query execution for demo purposes

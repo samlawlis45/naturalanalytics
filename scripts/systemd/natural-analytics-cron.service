@@ -1,0 +1,49 @@
+[Unit]
+Description=Natural Analytics Cron Service
+Documentation=https://github.com/naturalanalytics/app
+After=network.target natural-analytics.service
+Wants=natural-analytics.service
+
+[Service]
+Type=simple
+User=naturalanalytics
+Group=naturalanalytics
+WorkingDirectory=/opt/natural-analytics
+ExecStart=/usr/bin/node scripts/cron-daemon.js start
+ExecStop=/usr/bin/node scripts/cron-daemon.js stop
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Environment
+Environment=NODE_ENV=production
+Environment=CRON_APP_URL=http://localhost:3000
+Environment=CRON_PID_FILE=/var/run/natural-analytics/cron.pid
+Environment=CRON_LOG_FILE=/var/log/natural-analytics/cron.log
+Environment=LOG_LEVEL=info
+Environment=HEALTH_CHECK_INTERVAL=60000
+Environment=MAX_RESTARTS=5
+
+# Process management
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/natural-analytics /var/run/natural-analytics
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=512M
+CPUQuota=50%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=natural-analytics-cron
+
+[Install]
+WantedBy=multi-user.target
