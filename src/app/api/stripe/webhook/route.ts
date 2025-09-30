@@ -32,9 +32,11 @@ export async function POST(request: NextRequest) {
           break;
         }
 
-        // Create or update subscription
+        // Create or update subscription using unique key
         await prisma.subscription.upsert({
-          where: { userId },
+          where: {
+            stripeSubscriptionId: session.subscription as string,
+          },
           update: {
             stripeCustomerId: session.customer as string,
             stripeSubscriptionId: session.subscription as string,
