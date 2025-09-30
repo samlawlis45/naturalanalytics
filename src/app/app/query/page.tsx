@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Send, BarChart3, Database, Clock, CheckCircle, XCircle, Save, Share2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { ExportMenu } from '@/components/export-menu';
@@ -236,42 +234,13 @@ export default function DemoPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
-      <nav className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="flex items-center space-x-2">
-              <BarChart3 className="h-8 w-8 text-blue-600" />
-              <span className="text-2xl font-bold text-gray-900">NaturalAnalytics</span>
-            </Link>
-            <div className="flex items-center space-x-4">
-              <Link href="/pricing">
-                <Button variant="ghost">Pricing</Button>
-              </Link>
-              <Link href="/auth/signin">
-                <Button variant="ghost">Sign In</Button>
-              </Link>
-              <Link href="/auth/signup">
-                <Button>Get Started</Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
-
       {/* Header */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Try Natural Analytics</h1>
-              <p className="text-gray-600 mt-1">Experience natural language analytics with our sample data</p>
-            </div>
-            <div className="flex gap-2">
-              <Badge variant="secondary">Demo Mode</Badge>
-              <Link href="/auth/signup">
-                <Button>Get Full Access</Button>
-              </Link>
+              <h1 className="text-2xl font-bold text-gray-900">Query Your Data</h1>
+              <p className="text-gray-600 mt-1">Ask questions in natural language and get instant visualizations</p>
             </div>
           </div>
         </div>
@@ -288,7 +257,7 @@ export default function DemoPage() {
                   <span>Ask Your Data</span>
                 </CardTitle>
                 <CardDescription className="text-gray-800">
-                  Try natural language queries on our sample e-commerce database
+                  Ask questions about your data using natural language
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

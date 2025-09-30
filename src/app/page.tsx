@@ -16,20 +16,11 @@ export default function Home() {
               <span className="text-2xl font-bold text-gray-900">NaturalAnalytics</span>
             </div>
             <div className="flex items-center space-x-4">
-              <Link href="/demo">
-                <Button variant="ghost">Demo</Button>
-              </Link>
-              <Link href="/builder">
-                <Button variant="ghost">Builder</Button>
-              </Link>
-              <Link href="/dashboards">
-                <Button variant="ghost">Dashboards</Button>
-              </Link>
-              <Link href="/datasources">
-                <Button variant="ghost">Data Sources</Button>
-              </Link>
               <Link href="/pricing">
                 <Button variant="ghost">Pricing</Button>
+              </Link>
+              <Link href="/demo">
+                <Button variant="ghost">Demo</Button>
               </Link>
               <Link href="/auth/signin">
                 <Button variant="ghost">Sign In</Button>
@@ -59,15 +50,15 @@ export default function Home() {
             No SQL knowledge required. Just ask, and get instant visualizations.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/demo">
+            <Link href="/auth/signup">
               <Button size="lg" className="text-lg px-8 py-6">
-                Try Demo
+                Start Free Trial
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link href="/builder">
+            <Link href="/demo">
               <Button variant="outline" size="lg" className="text-lg px-8 py-6">
-                Visual Builder
+                Try Demo
               </Button>
             </Link>
           </div>
@@ -189,9 +180,9 @@ export default function Home() {
               <h3 className="font-semibold mb-4">Product</h3>
               <ul className="space-y-2 text-gray-800">
                 <li><Link href="/demo" className="hover:text-white">Demo</Link></li>
-                <li><Link href="/builder" className="hover:text-white">Builder</Link></li>
                 <li><Link href="/pricing" className="hover:text-white">Pricing</Link></li>
-                <li><Link href="/api" className="hover:text-white">API</Link></li>
+                <li><Link href="/features" className="hover:text-white">Features</Link></li>
+                <li><Link href="/integrations" className="hover:text-white">Integrations</Link></li>
               </ul>
             </div>
             <div>

@@ -48,7 +48,7 @@ export default function SignUpPage() {
       if (result?.error) {
         setError('An error occurred. Please try again.');
       } else {
-        router.push('/dashboard');
+        router.push('/app');
       }
     } catch {
       setError('An error occurred. Please try again.');
@@ -62,7 +62,7 @@ export default function SignUpPage() {
     setError('');
 
     try {
-      await signIn('google', { callbackUrl: '/dashboard' });
+      await signIn('google', { callbackUrl: '/app' });
     } catch {
       setError('An error occurred. Please try again.');
       setIsLoading(false);

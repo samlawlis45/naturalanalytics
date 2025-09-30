@@ -33,7 +33,7 @@ export default function SignInPage() {
       if (result?.error) {
         setError('Invalid email or password');
       } else {
-        router.push('/dashboard');
+        router.push('/app');
       }
     } catch {
       setError('An error occurred. Please try again.');
@@ -47,7 +47,7 @@ export default function SignInPage() {
     setError('');
 
     try {
-      await signIn('google', { callbackUrl: '/dashboard' });
+      await signIn('google', { callbackUrl: '/app' });
     } catch {
       setError('An error occurred. Please try again.');
       setIsLoading(false);
