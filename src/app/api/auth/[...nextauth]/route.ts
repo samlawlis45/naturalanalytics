@@ -2,6 +2,7 @@ import NextAuth from 'next-auth'
 import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import GoogleProvider from 'next-auth/providers/google'
 import EmailProvider from 'next-auth/providers/email'
+import CredentialsProvider from 'next-auth/providers/credentials'
 import { prisma } from '@/lib/prisma'
 import type { NextAuthOptions } from 'next-auth'
 
@@ -47,7 +48,6 @@ if (process.env.EMAIL_SERVER_HOST && process.env.EMAIL_SERVER_USER) {
 
 // If no providers are configured, add a basic credentials provider for demo
 if (providers.length === 0) {
-  const CredentialsProvider = require('next-auth/providers/credentials').default
   providers.push(
     CredentialsProvider({
       name: 'credentials',
