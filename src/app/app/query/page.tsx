@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Send, BarChart3, Database, Clock, CheckCircle, XCircle, Save, Share2, History, Star, StarOff, Trash2, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button-modern';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card-modern';
+import { Send, BarChart3, Database, Clock, CheckCircle, XCircle, Save, Share2, History, Star, StarOff, Trash2, RefreshCw, Sparkles, Play, AlertCircle } from 'lucide-react';
 import { ExportMenu } from '@/components/export-menu';
 import { EnhancedChartWidget } from '@/components/charts/enhanced-chart-widget';
 import { ChartConfig } from '@/components/charts/chart-renderer';
@@ -367,18 +367,27 @@ export default function QueryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Query Your Data</h1>
-              <p className="text-gray-600 mt-1">Ask questions in natural language and get instant visualizations</p>
+              <div className="flex items-center space-x-2 mb-2">
+                <Sparkles className="h-5 w-5 text-blue-600" />
+                <span className="text-sm font-medium text-blue-600 uppercase tracking-wide">Natural Language Query</span>
+              </div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-1">Query Your Data</h1>
+              <p className="text-slate-600">
+                Ask questions in natural language and get instant visualizations
+              </p>
               {queryHistory.filter(q => q.isFavorite).length > 0 && (
-                <p className="text-sm text-yellow-600 mt-1">
-                  {queryHistory.filter(q => q.isFavorite).length} favorite queries saved
-                </p>
+                <div className="flex items-center space-x-1 mt-2">
+                  <Star className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm text-slate-600">
+                    {queryHistory.filter(q => q.isFavorite).length} favorite queries saved
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -389,26 +398,27 @@ export default function QueryPage() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Query Interface */}
           <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Database className="h-5 w-5" />
-                  <span>Ask Your Data</span>
-                </CardTitle>
-                <CardDescription className="text-gray-800">
-                  Ask questions about your data using natural language
+            <Card variant="elevated" size="lg">
+              <CardHeader size="lg">
+                <div className="flex items-center space-x-2 mb-1">
+                  <Database className="h-5 w-5 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-600 uppercase tracking-wide">Query Interface</span>
+                </div>
+                <CardTitle size="lg">Ask Your Data</CardTitle>
+                <CardDescription size="lg">
+                  Transform natural language into powerful insights
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent size="lg" className="space-y-6">
                 <div>
-                  <label htmlFor="dataSource" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="dataSource" className="block text-sm font-medium text-slate-700 mb-2">
                     Data Source
                   </label>
                   <select
                     id="dataSource"
                     value={selectedDataSource}
                     onChange={(e) => setSelectedDataSource(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-3 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   >
                     <option value="demo">Demo Database</option>
                     {dataSources.filter(ds => ds.isActive).map(ds => (
@@ -420,45 +430,54 @@ export default function QueryPage() {
                 </div>
 
                 <div>
+                  <label htmlFor="query" className="block text-sm font-medium text-slate-700 mb-2">
+                    Natural Language Query
+                  </label>
                   <textarea
+                    id="query"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="e.g., Show me total sales by month"
-                    className="w-full h-32 p-3 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="e.g., Show me total sales by month, or What are our top performing products?"
+                    className="w-full h-32 p-4 border border-slate-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white text-slate-900 placeholder-slate-500"
                   />
+                  <p className="text-xs text-slate-500 mt-2">
+                    Ask questions about your data in plain English
+                  </p>
                 </div>
                 
                 <Button 
                   onClick={handleQuery} 
                   disabled={isLoading || !query.trim()}
+                  variant="brand"
+                  size="lg"
                   className="w-full"
                 >
                   {isLoading ? (
                     <>
-                      <Clock className="h-4 w-4 mr-2 animate-spin" />
-                      Processing...
+                      <Clock className="h-5 w-5 mr-2 animate-spin" />
+                      Processing Query...
                     </>
                   ) : (
                     <>
-                      <Send className="h-4 w-4 mr-2" />
+                      <Play className="h-5 w-5 mr-2" />
                       Execute Query
                     </>
                   )}
                 </Button>
 
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant="secondary"
+                    size="md"
                     onClick={() => setShowHistory(!showHistory)}
                     className="flex-1"
                   >
-                    <History className="h-4 w-4 mr-1" />
+                    <History className="h-4 w-4 mr-2" />
                     History ({queryHistory.length})
                   </Button>
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant="ghost"
+                    size="md"
                     onClick={fetchQueryHistory}
                     disabled={isLoadingHistory}
                   >

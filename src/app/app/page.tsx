@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button-modern';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card-modern';
+import { MetricCard } from '@/components/ui/metric-card';
 import { Badge } from '@/components/ui/badge';
 import { 
   BarChart3, 
@@ -14,7 +15,9 @@ import {
   Users,
   Clock,
   Plus,
-  Activity
+  Activity,
+  ArrowUpRight,
+  Sparkles
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -109,214 +112,232 @@ export default function AppDashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
-          <BarChart3 className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-pulse" />
-          <p className="text-gray-600">Loading your dashboard...</p>
+          <div className="p-4 bg-white rounded-xl shadow-lg mb-6">
+            <BarChart3 className="h-12 w-12 text-blue-600 mx-auto animate-pulse" />
+          </div>
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">Loading your analytics</h2>
+          <p className="text-slate-600">Preparing your dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <div className="flex items-center space-x-2 mb-2">
+                <Sparkles className="h-5 w-5 text-blue-600" />
+                <span className="text-sm font-medium text-blue-600 uppercase tracking-wide">Dashboard</span>
+              </div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-1">
                 Welcome back, {session?.user?.name || 'User'}!
               </h1>
-              <p className="text-gray-600 mt-1">
-                Here&apos;s what&apos;s happening with your analytics
+              <p className="text-slate-600">
+                Track your analytics performance and discover insights from your data
               </p>
             </div>
-            <Link href="/app/query">
-              <Button size="lg">
-                <Plus className="h-5 w-5 mr-2" />
-                New Query
-              </Button>
-            </Link>
+            <div className="flex items-center space-x-3">
+              <Link href="/app/query">
+                <Button variant="brand" size="lg" leftIcon={<Plus className="h-5 w-5" />}>
+                  New Query
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Activity className="h-6 w-6 text-blue-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Queries</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats?.overview.totalQueries || 0}</p>
-                  {stats?.activity.queriesThisWeek > 0 && (
-                    <p className="text-xs text-green-600 mt-1">
-                      +{stats.activity.queriesThisWeek} this week
-                    </p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <MetricCard
+            title="Total Queries"
+            value={stats?.overview.totalQueries || 0}
+            icon={<Activity className="h-5 w-5" />}
+            variant="info"
+            change={stats?.activity.queriesThisWeek > 0 ? {
+              value: Math.round(((stats.activity.queriesThisWeek - stats.activity.queriesLastWeek) / Math.max(stats.activity.queriesLastWeek, 1)) * 100),
+              period: "this week",
+              trend: stats.activity.queriesThisWeek > stats.activity.queriesLastWeek ? 'up' : 'down'
+            } : undefined}
+          />
 
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <Database className="h-6 w-6 text-green-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Data Sources</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats?.overview.totalDataSources || 0}</p>
-                  {stats?.trends.topDataSources.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {stats.trends.topDataSources[0].name} most used
-                    </p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <MetricCard
+            title="Data Sources"
+            value={stats?.overview.totalDataSources || 0}
+            icon={<Database className="h-5 w-5" />}
+            variant="success"
+            description={stats?.trends.topDataSources.length > 0 ? `${stats.trends.topDataSources[0].name} most used` : undefined}
+          />
 
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <BarChart3 className="h-6 w-6 text-purple-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Dashboards</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats?.overview.totalDashboards || 0}</p>
-                  {stats?.activity.dashboardsThisMonth > 0 && (
-                    <p className="text-xs text-green-600 mt-1">
-                      +{stats.activity.dashboardsThisMonth} this month
-                    </p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <MetricCard
+            title="Dashboards"
+            value={stats?.overview.totalDashboards || 0}
+            icon={<BarChart3 className="h-5 w-5" />}
+            variant="default"
+            change={stats?.activity.dashboardsThisMonth > 0 ? {
+              value: stats.activity.dashboardsThisMonth,
+              period: "this month",
+              trend: 'up'
+            } : undefined}
+          />
 
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <TrendingUp className="h-6 w-6 text-orange-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Growth</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {stats?.overview.weekOverWeekGrowth >= 0 ? '+' : ''}
-                    {stats?.overview.weekOverWeekGrowth.toFixed(1) || '0'}%
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">vs last week</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <MetricCard
+            title="Growth Rate"
+            value={`${stats?.overview.weekOverWeekGrowth >= 0 ? '+' : ''}${stats?.overview.weekOverWeekGrowth.toFixed(1) || '0'}%`}
+            icon={<TrendingUp className="h-5 w-5" />}
+            variant={stats?.overview.weekOverWeekGrowth >= 0 ? 'success' : 'warning'}
+            description="vs last week"
+          />
         </div>
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription className="text-gray-800">
-                Get started with these common tasks
+          <Card variant="elevated" size="lg">
+            <CardHeader size="lg">
+              <div className="flex items-center space-x-2 mb-1">
+                <Sparkles className="h-5 w-5 text-blue-600" />
+                <span className="text-sm font-medium text-blue-600 uppercase tracking-wide">Quick Actions</span>
+              </div>
+              <CardTitle size="lg">Jump into your workflow</CardTitle>
+              <CardDescription size="lg">
+                Start exploring your data with these powerful tools
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent size="lg" className="space-y-3">
               <Link href="/app/query" className="block">
-                <div className="flex items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                  <Zap className="h-8 w-8 text-blue-600 mr-4" />
-                  <div>
-                    <h3 className="font-medium">Ask a Question</h3>
-                    <p className="text-sm text-gray-600">Query your data using natural language</p>
-                  </div>
-                </div>
+                <Card variant="interactive" size="sm" className="group">
+                  <CardContent size="sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                          <Zap className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-slate-900">Ask a Question</h3>
+                          <p className="text-sm text-slate-600">Query your data using natural language</p>
+                        </div>
+                      </div>
+                      <ArrowUpRight className="h-5 w-5 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                    </div>
+                  </CardContent>
+                </Card>
               </Link>
 
               <Link href="/app/builder" className="block">
-                <div className="flex items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                  <BarChart3 className="h-8 w-8 text-purple-600 mr-4" />
-                  <div>
-                    <h3 className="font-medium">Build a Dashboard</h3>
-                    <p className="text-sm text-gray-600">Create visualizations with drag & drop</p>
-                  </div>
-                </div>
+                <Card variant="interactive" size="sm" className="group">
+                  <CardContent size="sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+                          <BarChart3 className="h-6 w-6 text-purple-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-slate-900">Build a Dashboard</h3>
+                          <p className="text-sm text-slate-600">Create visualizations with drag & drop</p>
+                        </div>
+                      </div>
+                      <ArrowUpRight className="h-5 w-5 text-slate-400 group-hover:text-purple-600 transition-colors" />
+                    </div>
+                  </CardContent>
+                </Card>
               </Link>
 
               <Link href="/app/datasources" className="block">
-                <div className="flex items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                  <Database className="h-8 w-8 text-green-600 mr-4" />
-                  <div>
-                    <h3 className="font-medium">Connect Data</h3>
-                    <p className="text-sm text-gray-600">Add a new data source</p>
-                  </div>
-                </div>
+                <Card variant="interactive" size="sm" className="group">
+                  <CardContent size="sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="p-3 bg-emerald-100 rounded-lg group-hover:bg-emerald-200 transition-colors">
+                          <Database className="h-6 w-6 text-emerald-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-slate-900">Connect Data</h3>
+                          <p className="text-sm text-slate-600">Add a new data source</p>
+                        </div>
+                      </div>
+                      <ArrowUpRight className="h-5 w-5 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+                    </div>
+                  </CardContent>
+                </Card>
               </Link>
             </CardContent>
           </Card>
 
           {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Clock className="h-5 w-5 mr-2" />
-                Recent Queries
-              </CardTitle>
-              <CardDescription className="text-gray-800">
-                Your latest data explorations
+          <Card variant="elevated" size="lg">
+            <CardHeader size="lg">
+              <div className="flex items-center space-x-2 mb-1">
+                <Clock className="h-5 w-5 text-slate-600" />
+                <span className="text-sm font-medium text-slate-600 uppercase tracking-wide">Activity</span>
+              </div>
+              <CardTitle size="lg">Recent Queries</CardTitle>
+              <CardDescription size="lg">
+                Your latest data explorations and insights
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            <CardContent size="lg">
+              <div className="space-y-3">
                 {stats?.activity.recentQueries.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Activity className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">No queries yet</p>
-                    <p className="text-xs text-gray-400">Start by asking a question about your data</p>
+                  <div className="text-center py-12">
+                    <div className="p-4 bg-slate-100 rounded-xl mb-4 w-fit mx-auto">
+                      <Activity className="h-8 w-8 text-slate-400 mx-auto" />
+                    </div>
+                    <h3 className="text-sm font-medium text-slate-900 mb-1">No queries yet</h3>
+                    <p className="text-sm text-slate-600 mb-4">Start by asking a question about your data</p>
+                    <Link href="/app/query">
+                      <Button variant="secondary" size="sm">Ask Your First Question</Button>
+                    </Link>
                   </div>
                 ) : (
                   stats?.activity.recentQueries.map((query) => (
-                    <div key={query.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="p-1 bg-gray-100 rounded">
-                        <Activity className="h-4 w-4 text-gray-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {query.naturalQuery}
-                        </p>
-                        <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
-                          <span>
-                            {new Date(query.createdAt).toLocaleDateString()} at{' '}
-                            {new Date(query.createdAt).toLocaleTimeString()}
-                          </span>
-                          <span>•</span>
-                          <span>{query.executionTime}ms</span>
+                    <Card key={query.id} variant="outlined" size="sm" className="hover:border-slate-300 transition-colors">
+                      <CardContent size="sm">
+                        <div className="flex items-start space-x-3">
+                          <div className="p-2 bg-blue-100 rounded-lg">
+                            <Activity className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-slate-900 truncate">
+                              {query.naturalQuery}
+                            </p>
+                            <div className="flex items-center space-x-3 text-xs text-slate-500 mt-2">
+                              <span>
+                                {new Date(query.createdAt).toLocaleDateString()} at{' '}
+                                {new Date(query.createdAt).toLocaleTimeString()}
+                              </span>
+                              <div className="flex items-center space-x-1">
+                                <div className="w-1 h-1 bg-slate-300 rounded-full"></div>
+                                <span>{query.executionTime}ms</span>
+                              </div>
+                            </div>
+                            {query.sqlQuery && (
+                              <p className="text-xs text-slate-400 mt-2 font-mono bg-slate-50 p-2 rounded border truncate">
+                                {query.sqlQuery}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        {query.sqlQuery && (
-                          <p className="text-xs text-gray-400 mt-1 font-mono truncate">
-                            {query.sqlQuery}
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                      </CardContent>
+                    </Card>
                   ))
                 )}
               </div>
-              <div className="mt-4 pt-4 border-t">
-                <Link href="/app/query">
-                  <Button variant="outline" className="w-full">
-                    View All Queries
-                  </Button>
-                </Link>
-              </div>
+              {stats?.activity.recentQueries.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-slate-200">
+                  <Link href="/app/query">
+                    <Button variant="outline" className="w-full">
+                      View All Queries
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -324,61 +345,90 @@ export default function AppDashboard() {
         {/* Performance Metrics */}
         {stats && stats.overview.totalQueries > 0 && (
           <div className="grid lg:grid-cols-2 gap-8 mb-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <TrendingUp className="h-5 w-5 mr-2" />
-                  Query Performance
-                </CardTitle>
-                <CardDescription className="text-gray-800">
-                  Your query execution metrics
+            <Card variant="elevated" size="lg">
+              <CardHeader size="lg">
+                <div className="flex items-center space-x-2 mb-1">
+                  <TrendingUp className="h-5 w-5 text-emerald-600" />
+                  <span className="text-sm font-medium text-emerald-600 uppercase tracking-wide">Performance</span>
+                </div>
+                <CardTitle size="lg">Query Metrics</CardTitle>
+                <CardDescription size="lg">
+                  Monitor your query execution performance
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-4 bg-blue-50 rounded-lg">
-                    <p className="text-2xl font-bold text-blue-600">{stats.performance.avgExecutionTime}ms</p>
-                    <p className="text-sm text-gray-600">Average Time</p>
-                  </div>
-                  <div className="text-center p-4 bg-green-50 rounded-lg">
-                    <p className="text-2xl font-bold text-green-600">{stats.performance.fastestQuery}ms</p>
-                    <p className="text-sm text-gray-600">Fastest Query</p>
-                  </div>
+              <CardContent size="lg">
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <MetricCard
+                    title="Average Time"
+                    value={`${stats.performance.avgExecutionTime}ms`}
+                    variant="info"
+                    size="sm"
+                  />
+                  <MetricCard
+                    title="Fastest Query"
+                    value={`${stats.performance.fastestQuery}ms`}
+                    variant="success"
+                    size="sm"
+                  />
                 </div>
-                <div className="mt-4 text-sm text-gray-600">
-                  <p>Total execution time: {(stats.performance.totalExecutionTime / 1000).toFixed(1)}s</p>
-                  <p>Slowest query: {stats.performance.slowestQuery}ms</p>
+                <div className="space-y-2 text-sm text-slate-600 bg-slate-50 p-4 rounded-lg">
+                  <div className="flex justify-between">
+                    <span>Total execution time</span>
+                    <span className="font-medium">{(stats.performance.totalExecutionTime / 1000).toFixed(1)}s</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Slowest query</span>
+                    <span className="font-medium text-amber-600">{stats.performance.slowestQuery}ms</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Database className="h-5 w-5 mr-2" />
-                  Data Source Usage
-                </CardTitle>
-                <CardDescription className="text-gray-800">
-                  Most frequently queried sources
+            <Card variant="elevated" size="lg">
+              <CardHeader size="lg">
+                <div className="flex items-center space-x-2 mb-1">
+                  <Database className="h-5 w-5 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-600 uppercase tracking-wide">Data Sources</span>
+                </div>
+                <CardTitle size="lg">Usage Statistics</CardTitle>
+                <CardDescription size="lg">
+                  Most frequently queried data sources
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent size="lg">
                 {stats.trends.topDataSources.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">No data source usage yet</p>
+                  <div className="text-center py-8">
+                    <div className="p-4 bg-slate-100 rounded-xl mb-4 w-fit mx-auto">
+                      <Database className="h-8 w-8 text-slate-400 mx-auto" />
+                    </div>
+                    <h3 className="text-sm font-medium text-slate-900 mb-1">No data sources connected</h3>
+                    <p className="text-sm text-slate-600 mb-4">Connect your first data source to see usage statistics</p>
+                    <Link href="/app/datasources">
+                      <Button variant="secondary" size="sm">Connect Data Source</Button>
+                    </Link>
+                  </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {stats.trends.topDataSources.map((source, index) => (
-                      <div key={source.name} className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
+                      <div key={source.name} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border">
+                        <div className="flex items-center space-x-3">
                           <div className={`w-3 h-3 rounded-full ${
                             index === 0 ? 'bg-blue-500' :
-                            index === 1 ? 'bg-green-500' :
-                            index === 2 ? 'bg-yellow-500' : 'bg-gray-400'
+                            index === 1 ? 'bg-emerald-500' :
+                            index === 2 ? 'bg-amber-500' : 'bg-slate-400'
                           }`} />
-                          <span className="text-sm font-medium">{source.name}</span>
-                          <Badge variant="outline" className="text-xs">{source.type}</Badge>
+                          <div>
+                            <p className="font-medium text-slate-900">{source.name}</p>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <Badge variant="outline" className="text-xs">{source.type}</Badge>
+                              <span className="text-xs text-slate-500">{source.count} queries</span>
+                            </div>
+                          </div>
                         </div>
-                        <span className="text-sm text-gray-600">{source.count} queries</span>
+                        <div className="text-right">
+                          <div className="text-lg font-semibold text-slate-900">{source.count}</div>
+                          <div className="text-xs text-slate-500">queries</div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -390,70 +440,89 @@ export default function AppDashboard() {
 
         {/* Getting Started Section - Show only if user has minimal data */}
         {stats && stats.overview.totalQueries < 5 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Users className="h-5 w-5 mr-2" />
-                Getting Started
-              </CardTitle>
-              <CardDescription className="text-gray-800">
-                Complete these steps to get the most out of Natural Analytics
+          <Card variant="elevated" size="lg" className="border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50">
+            <CardHeader size="lg">
+              <div className="flex items-center space-x-2 mb-1">
+                <Users className="h-5 w-5 text-blue-600" />
+                <span className="text-sm font-medium text-blue-600 uppercase tracking-wide">Getting Started</span>
+              </div>
+              <CardTitle size="lg" className="text-slate-900">Complete your setup</CardTitle>
+              <CardDescription size="lg">
+                Follow these steps to unlock the full potential of Natural Analytics
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  <Badge variant="secondary">1</Badge>
-                  <div className="flex-1">
-                    <h4 className="font-medium">
+            <CardContent size="lg">
+              <div className="space-y-6">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">
+                      1
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-slate-900 mb-1">
                       {stats.overview.totalDataSources === 0 ? 'Connect your first data source' : 'Add more data sources'}
                     </h4>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-slate-600 mb-3">
                       {stats.overview.totalDataSources === 0 
-                        ? 'Link your database to start analyzing your data'
-                        : 'Connect additional databases for richer insights'
+                        ? 'Link your database to start analyzing your data with natural language queries'
+                        : 'Connect additional databases for richer insights and comprehensive analysis'
                       }
                     </p>
+                    <Link href="/app/datasources">
+                      <Button variant="primary" size="sm" leftIcon={<Database className="h-4 w-4" />}>
+                        {stats.overview.totalDataSources === 0 ? 'Connect Now' : 'Add More'}
+                      </Button>
+                    </Link>
                   </div>
-                  <Link href="/app/datasources">
-                    <Button variant="outline" size="sm">Connect</Button>
-                  </Link>
                 </div>
 
-                <div className="flex items-center space-x-3">
-                  <Badge variant="secondary">2</Badge>
-                  <div className="flex-1">
-                    <h4 className="font-medium">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">
+                      2
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-slate-900 mb-1">
                       {stats.overview.totalQueries === 0 ? 'Ask your first question' : 'Explore more data'}
                     </h4>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-slate-600 mb-3">
                       {stats.overview.totalQueries === 0 
-                        ? 'Try querying your data using natural language'
-                        : 'Ask complex questions to discover insights'
+                        ? 'Try our natural language querying to get insights from your data instantly'
+                        : 'Ask complex questions and discover deeper insights from your connected data'
                       }
                     </p>
+                    <Link href="/app/query">
+                      <Button variant="primary" size="sm" leftIcon={<Zap className="h-4 w-4" />}>
+                        {stats.overview.totalQueries === 0 ? 'Ask Question' : 'Explore More'}
+                      </Button>
+                    </Link>
                   </div>
-                  <Link href="/app/query">
-                    <Button variant="outline" size="sm">Try Now</Button>
-                  </Link>
                 </div>
 
-                <div className="flex items-center space-x-3">
-                  <Badge variant="secondary">3</Badge>
-                  <div className="flex-1">
-                    <h4 className="font-medium">
-                      {stats.overview.totalDashboards === 0 ? 'Create a dashboard' : 'Build advanced dashboards'}
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">
+                      3
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-slate-900 mb-1">
+                      {stats.overview.totalDashboards === 0 ? 'Create your first dashboard' : 'Build advanced dashboards'}
                     </h4>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-slate-600 mb-3">
                       {stats.overview.totalDashboards === 0 
-                        ? 'Save and organize your visualizations'
-                        : 'Create multi-widget dashboards for comprehensive views'
+                        ? 'Save and organize your visualizations into powerful, shareable dashboards'
+                        : 'Create sophisticated multi-widget dashboards for comprehensive data views'
                       }
                     </p>
+                    <Link href="/app/builder">
+                      <Button variant="primary" size="sm" leftIcon={<BarChart3 className="h-4 w-4" />}>
+                        {stats.overview.totalDashboards === 0 ? 'Create Dashboard' : 'Build More'}
+                      </Button>
+                    </Link>
                   </div>
-                  <Link href="/app/builder">
-                    <Button variant="outline" size="sm">Build</Button>
-                  </Link>
                 </div>
               </div>
             </CardContent>
