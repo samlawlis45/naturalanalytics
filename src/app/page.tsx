@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, BarChart3, MessageSquare, Zap, TrendingUp, Users, DollarSign, Calendar, ChevronRight, Play, Check, X, Clock, Database, Sparkles, LineChart, PieChart, Activity } from 'lucide-react';
 
