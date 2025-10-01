@@ -17,16 +17,16 @@ export default function Home() {
             </div>
             <div className="flex items-center space-x-4">
               <Link href="/pricing">
-                <Button variant="ghost">Pricing</Button>
+                <Button variant="ghost" className="text-gray-900 hover:text-gray-700">Pricing</Button>
               </Link>
               <Link href="/demo">
-                <Button variant="ghost">Demo</Button>
+                <Button variant="ghost" className="text-gray-900 hover:text-gray-700">Demo</Button>
               </Link>
               <Link href="/auth/signin">
-                <Button variant="ghost">Sign In</Button>
+                <Button variant="ghost" className="text-gray-900 hover:text-gray-700">Sign In</Button>
               </Link>
               <Link href="/auth/signup">
-                <Button>Get Started</Button>
+                <Button className="bg-blue-600 text-white hover:bg-blue-700">Get Started</Button>
               </Link>
             </div>
           </div>

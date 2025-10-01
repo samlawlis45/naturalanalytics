@@ -221,18 +221,24 @@ async function handleDemoQuery(query: string, request: NextRequest) {
   try {
     const session = await getServerSession();
     if (session?.user?.email) {
-      await prisma.query.create({
-        data: {
-          naturalQuery: query,
-          sqlQuery: sqlQuery,
-          result: JSON.parse(JSON.stringify(mockResult)),
-          status: 'COMPLETED',
-          executionTime: executionTime,
-          isFavorite: false,
-          userId: session.user.email,
-          dataSourceId: null // Demo mode has no data source
-        }
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email }
       });
+      
+      if (user) {
+        await prisma.query.create({
+          data: {
+            naturalQuery: query,
+            sqlQuery: sqlQuery,
+            result: JSON.parse(JSON.stringify(mockResult)),
+            status: 'COMPLETED',
+            executionTime: executionTime,
+            isFavorite: false,
+            userId: user.id,
+            dataSourceId: null // Demo mode has no data source
+          }
+        });
+      }
     }
   } catch (error) {
     // Don't fail the query if history save fails
